@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'counter_controller.dart';
+import 'package:logbook_app_070/features/logbook/counter_controller.dart';
+import 'package:logbook_app_070/features/onboarding/onboarding_view.dart';
 
 class CounterView extends StatefulWidget {
   final String username; // Wajib diisi dari LoginView
@@ -16,11 +17,70 @@ class CounterView extends StatefulWidget {
 class _CounterViewState extends State<CounterView> {
   final CounterController _controller = CounterController();
   final TextEditingController _stepController = TextEditingController(text: "1");
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    await _controller.loadAll(widget.username);
+    _stepController.text = _controller.step.toString();
+    setState(() => _isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Task 1 - Multi Step Counter")),
+      appBar: AppBar(
+        title: Text("Logbook: ${widget.username}"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text("Konfirmasi Logout"),
+                    content: const Text("Yakin mau keluar?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Batal"),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const OnboardingView(),
+                            ),
+                            (route) => false,
+                          );
+                        },
+                        child: const Text(
+                          "Keluar",
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -31,7 +91,6 @@ class _CounterViewState extends State<CounterView> {
               '${_controller.value}',
               style: const TextStyle(fontSize: 40),
             ),
-
             const SizedBox(height: 20),
 
             TextField(
@@ -43,7 +102,9 @@ class _CounterViewState extends State<CounterView> {
               ),
               onChanged: (val) {
                 final step = int.tryParse(val) ?? 1;
-                _controller.setStep(step);
+                setState(() {
+                  _controller.setStep(step);
+                });
               },
             ),
 
@@ -55,7 +116,7 @@ class _CounterViewState extends State<CounterView> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _controller.increment();
+                      _controller.increment(widget.username);
                     });
                   },
                   child: const Text("+"),
@@ -63,80 +124,81 @@ class _CounterViewState extends State<CounterView> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _controller.decrement();
+                      _controller.decrement(widget.username);
                     });
                   },
                   child: const Text("-"),
                 ),
                 ElevatedButton(
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) {
-                      return AlertDialog(
-                        title: const Text("Konfirmasi Reset"),
-                        content: const Text("Yakin mau reset counter?"),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context); // tutup dialog
-                            },
-                            child: const Text("Batal"),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _controller.reset();
-                              });
-                              Navigator.pop(context); // tutup dialog
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) {
+                        return AlertDialog(
+                          title: const Text("Konfirmasi Reset"),
+                          content: const Text("Yakin mau reset counter?"),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              child: const Text("Batal"),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _controller.reset(widget.username);
+                                });
+                                Navigator.pop(context);
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Counter berhasil direset"),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            child: const Text("Ya"),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-                child: const Text("Reset"),
-              ),
-
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Counter berhasil direset"),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              child: const Text("Ya"),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                  child: const Text("Reset"),
+                ),
               ],
             ),
+
             const SizedBox(height: 24),
             const Text("History (5 terakhir):"),
             const SizedBox(height: 8),
 
             Expanded(
-              child: ListView(
-                children: _controller.history.map((e) {
-                  Color color = Colors.black;
+              child: _controller.history.isEmpty
+                  ? const Center(child: Text("Belum ada aktivitas"))
+                  : ListView(
+                      children: _controller.history.map((e) {
+                        Color color = Colors.black;
 
-                  if (e.startsWith("+")) {
-                    color = Colors.green;
-                  } else if (e.startsWith("-")) {
-                    color = Colors.red;
-                  } else if (e.startsWith("Reset")) {
-                    color = Colors.grey;
-                  }
+                        if (e.contains("+")) {
+                          color = Colors.green;
+                        } else if (e.contains("-")) {
+                          color = Colors.red;
+                        } else if (e.contains("Reset")) {
+                          color = Colors.grey;
+                        }
 
-                  return ListTile(
-                    title: Text(
-                      e,
-                      style: TextStyle(color: color),
+                        return ListTile(
+                          leading: const Icon(Icons.history),
+                          title: Text(
+                            e,
+                            style: TextStyle(color: color),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                  );
-                }).toList(),
-              ),
             ),
-
-
           ],
         ),
       ),
