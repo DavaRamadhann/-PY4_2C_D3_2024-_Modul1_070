@@ -25,6 +25,24 @@ class _CounterViewState extends State<CounterView> {
     _loadData();
   }
 
+  // ===== Welcome Banner (UX) =====
+  String _getWelcomeMessage(String username) {
+    final hour = DateTime.now().hour;
+
+    String greet;
+    if (hour >= 6 && hour < 11) {
+      greet = "Selamat Pagi";
+    } else if (hour >= 11 && hour < 15) {
+      greet = "Selamat Siang";
+    } else if (hour >= 15 && hour < 18) {
+      greet = "Selamat Sore";
+    } else {
+      greet = "Selamat Malam";
+    }
+
+    return "$greet, $username 👋";
+  }
+
   Future<void> _loadData() async {
     await _controller.loadAll(widget.username);
     _stepController.text = _controller.step.toString();
@@ -86,6 +104,14 @@ class _CounterViewState extends State<CounterView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // ===== Welcome Banner (dipakai di UI) =====
+            Text(
+              _getWelcomeMessage(widget.username),
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+
             const Text("Nilai Counter:"),
             Text(
               '${_controller.value}',
