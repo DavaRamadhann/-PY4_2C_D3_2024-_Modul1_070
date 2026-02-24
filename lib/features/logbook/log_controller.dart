@@ -1,31 +1,33 @@
 import 'package:flutter/material.dart';
-import 'models/log_model.dart';
+import 'package:logbook_app_070/features/logbook/models/log_model.dart';
 
 class LogController {
-  // Menyimpan semua catatan (Task 2 masih pakai List biasa, belum reaktif)
-  final List<LogModel> logs = [];
+  final ValueNotifier<List<LogModel>> logsNotifier = ValueNotifier([]);
 
-  // CREATE - Tambah catatan baru
-  void addLog(String title, String description) {
+  void addLog(String title, String desc) {
     final newLog = LogModel(
       title: title,
-      description: description,
-      timestamp: DateTime.now().toString(),
+      description: desc,
+      timestamp: DateTime.now(),
     );
-    logs.add(newLog);
+    logsNotifier.value = [...logsNotifier.value, newLog];
   }
 
-  // UPDATE - Edit catatan berdasarkan index
-  void updateLog(int index, String title, String description) {
-    logs[index] = LogModel(
+  void updateLog(int index, String title, String desc) {
+    final currentLogs = List<LogModel>.from(logsNotifier.value);
+    final oldLog = currentLogs[index];
+    
+    currentLogs[index] = LogModel(
       title: title,
-      description: description,
-      timestamp: DateTime.now().toString(),
+      description: desc,
+      timestamp: oldLog.timestamp,
     );
+    logsNotifier.value = currentLogs;
   }
 
-  // DELETE - Hapus catatan berdasarkan index
-  void removeLog(int index) {
-    logs.removeAt(index);
+  void deleteLog(int index) {
+    final currentLogs = List<LogModel>.from(logsNotifier.value);
+    currentLogs.removeAt(index);
+    logsNotifier.value = currentLogs;
   }
 }

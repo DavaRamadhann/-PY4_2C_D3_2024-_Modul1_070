@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../logbook/daily_logger_view.dart';
+import '../logbook/log_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -9,16 +9,16 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
   void _handleLogin() {
     // Simulasi login sukses (sesuaikan dengan logic login kamu sendiri)
-    if (_emailController.text.isNotEmpty &&
+    if (_usernameController.text.isNotEmpty &&
         _passwordController.text.isNotEmpty) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DailyLoggerView()),
+        MaterialPageRoute(builder: (_) => const LogView()),
       );
     }
   }
@@ -32,8 +32,8 @@ class _LoginViewState extends State<LoginView> {
         child: Column(
           children: [
             TextField(
-              controller: _emailController,
-              decoration: const InputDecoration(labelText: "Email"),
+              controller: _usernameController,
+              decoration: const InputDecoration(labelText: "Username"),
             ),
             const SizedBox(height: 12),
             TextField(

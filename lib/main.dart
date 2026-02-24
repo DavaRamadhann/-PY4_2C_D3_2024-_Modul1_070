@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'features/onboarding/onboarding_view.dart';
 import 'features/auth/login_view.dart';
-import 'features/logbook/daily_logger_view.dart';
+import 'features/logbook/log_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
       // Routing terpusat (opsional tapi rapi)
       routes: {
         '/login': (context) => const LoginView(),
-        '/logbook': (context) => const DailyLoggerView(),
+        '/logbook': (context) => const LogView(),
       },
     );
   }

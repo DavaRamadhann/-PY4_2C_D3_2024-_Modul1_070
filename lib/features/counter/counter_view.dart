@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:logbook_app_070/features/logbook/counter_controller.dart';
+import 'counter_controller.dart';
 import 'package:logbook_app_070/features/onboarding/onboarding_view.dart';
-import 'package:logbook_app_070/features/logbook/daily_logger_view.dart';
+import 'package:logbook_app_070/features/logbook/log_view.dart';
 
 class CounterView extends StatefulWidget {
   final String username; // Wajib diisi dari LoginView
@@ -67,7 +67,7 @@ class _CounterViewState extends State<CounterView> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const DailyLoggerView()),
+                MaterialPageRoute(builder: (_) => const LogView()),
               );
             },
             tooltip: 'The Daily Logger',
