@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:logbook_app_070/features/logbook/counter_controller.dart';
 import 'package:logbook_app_070/features/onboarding/onboarding_view.dart';
+import 'package:logbook_app_070/features/logbook/daily_logger_view.dart';
 
 class CounterView extends StatefulWidget {
   final String username; // Wajib diisi dari LoginView
@@ -61,6 +62,16 @@ class _CounterViewState extends State<CounterView> {
       appBar: AppBar(
         title: Text("Logbook: ${widget.username}"),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.book),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DailyLoggerView()),
+              );
+            },
+            tooltip: 'The Daily Logger',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
