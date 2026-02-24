@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:logbook_app_070/features/auth/login_controller.dart';
-import 'package:logbook_app_070/features/logbook/counter_view.dart';
+import '../logbook/daily_logger_view.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -11,98 +9,42 @@ class LoginView extends StatefulWidget {
 }
 
 class _LoginViewState extends State<LoginView> {
-  final LoginController _controller = LoginController();
-  final TextEditingController _userController = TextEditingController();
-  final TextEditingController _passController = TextEditingController();
-
-  bool _obscurePassword = true;
-  int _failedAttempts = 0;
-  bool _isLocked = false;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   void _handleLogin() {
-    if (_isLocked) return;
-
-    final user = _userController.text.trim();
-    final pass = _passController.text.trim();
-
-    // Validasi kosong
-    if (user.isEmpty || pass.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Username dan Password tidak boleh kosong")),
-      );
-      return;
-    }
-
-    final isSuccess = _controller.login(user, pass);
-
-    if (isSuccess) {
+    // Simulasi login sukses (sesuaikan dengan logic login kamu sendiri)
+    if (_emailController.text.isNotEmpty &&
+        _passwordController.text.isNotEmpty) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => CounterView(username: user),
-        ),
+        MaterialPageRoute(builder: (_) => const DailyLoggerView()),
       );
-    } else {
-      _failedAttempts++;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login gagal! Username / Password salah")),
-      );
-
-      if (_failedAttempts >= 3) {
-        setState(() => _isLocked = true);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Terlalu banyak percobaan. Tunggu 10 detik.")),
-        );
-
-        Timer(const Duration(seconds: 10), () {
-          setState(() {
-            _failedAttempts = 0;
-            _isLocked = false;
-          });
-        });
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Login Gatekeeper")),
+      appBar: AppBar(title: const Text("Login")),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             TextField(
-              controller: _userController,
-              decoration: const InputDecoration(labelText: "Username"),
+              controller: _emailController,
+              decoration: const InputDecoration(labelText: "Email"),
             ),
-            const SizedBox(height: 10),
-
+            const SizedBox(height: 12),
             TextField(
-              controller: _passController,
-              obscureText: _obscurePassword,
-              decoration: InputDecoration(
-                labelText: "Password",
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _obscurePassword = !_obscurePassword;
-                    });
-                  },
-                ),
-              ),
+              controller: _passwordController,
+              decoration: const InputDecoration(labelText: "Password"),
+              obscureText: true,
             ),
-
             const SizedBox(height: 20),
-
             ElevatedButton(
-              onPressed: _isLocked ? null : _handleLogin,
-              child: Text(_isLocked ? "Terkunci (10 detik)" : "Masuk"),
+              onPressed: _handleLogin,
+              child: const Text("Login"),
             ),
           ],
         ),
