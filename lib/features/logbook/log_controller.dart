@@ -1,4 +1,4 @@
-import 'dart:convert'; // Untuk jsonEncode & jsonDecode
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models/log_model.dart';
@@ -6,55 +6,55 @@ import 'models/log_model.dart';
 class LogController {
   final ValueNotifier<List<LogModel>> logsNotifier = ValueNotifier([]);
 
-  // Panggil load saat Controller pertama kali dibuat
   LogController() {
     loadFromStorage();
   }
 
-  // --- CRUD FUNCTIONS ---
-
-  void addLog(String title, String desc) {
+  void addLog(String title, String desc, String category) {
     final newLog = LogModel(
       title: title,
       description: desc,
+      category: category,
       timestamp: DateTime.now(),
     );
     logsNotifier.value = [...logsNotifier.value, newLog];
-    saveToStorage(); // Simpan otomatis
+    saveToStorage();
   }
 
-  void updateLog(int index, String title, String desc) {
+  void updateLog(int index, String title, String desc, String category) {
     final currentLogs = List<LogModel>.from(logsNotifier.value);
     final oldLog = currentLogs[index];
 
     currentLogs[index] = LogModel(
       title: title,
       description: desc,
-      timestamp: oldLog.timestamp,
+      category: category,
+      timestamp: oldLog.timestamp, // Waktu asli tetap dipertahankan
     );
     logsNotifier.value = currentLogs;
-    saveToStorage(); // Simpan otomatis
+    saveToStorage();
   }
 
   void deleteLog(int index) {
     final currentLogs = List<LogModel>.from(logsNotifier.value);
     currentLogs.removeAt(index);
     logsNotifier.value = currentLogs;
-    saveToStorage(); // Simpan otomatis
+    saveToStorage();
   }
 
-  // --- PERSISTENCE (TASK 4) ---
+  // Fitur Undo
+  void undoDelete(int index, LogModel log) {
+    final currentLogs = List<LogModel>.from(logsNotifier.value);
+    currentLogs.insert(index, log);
+    logsNotifier.value = currentLogs;
+    saveToStorage();
+  }
 
   Future<void> saveToStorage() async {
     final prefs = await SharedPreferences.getInstance();
-    // 1. Ubah List<LogModel> menjadi List<Map>
-    final List<Map<String, dynamic>> mapList = 
+    final List<Map<String, dynamic>> mapList =
         logsNotifier.value.map((log) => log.toMap()).toList();
-    
-    // 2. Encode List<Map> menjadi String JSON
     final String jsonString = jsonEncode(mapList);
-
-    // 3. Simpan ke SharedPreferences
     await prefs.setString('user_logs', jsonString);
   }
 
@@ -63,10 +63,7 @@ class LogController {
     final String? jsonString = prefs.getString('user_logs');
 
     if (jsonString != null) {
-      // 1. Decode String JSON menjadi List<dynamic>
       final List<dynamic> decodedList = jsonDecode(jsonString);
-
-      // 2. Ubah setiap item menjadi LogModel dan masukkan ke Notifier
       logsNotifier.value = decodedList
           .map((item) => LogModel.fromMap(item))
           .toList();
