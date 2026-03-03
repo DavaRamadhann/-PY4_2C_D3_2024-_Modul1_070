@@ -5,9 +5,11 @@ import '../../helpers/log_helper.dart';
 
 class LogController {
   final ValueNotifier<List<LogModel>> logsNotifier = ValueNotifier([]);
+  final ValueNotifier<String?> errorNotifier = ValueNotifier(null);
 
   Future<void> loadFromDisk() async {
     try {
+      errorNotifier.value = null; // Reset error
       final logs = await MongoService().getLogs();
       logsNotifier.value = logs;
       await LogHelper.writeLog(
@@ -16,8 +18,9 @@ class LogController {
         level: 2,
       );
     } catch (e) {
+      errorNotifier.value = "Gagal memuat data. Periksa koneksi internet Anda.";
       await LogHelper.writeLog(
-        "Gagal memuat data: $e",
+        "Load error: $e",
         source: "log_controller.dart",
         level: 1,
       );
