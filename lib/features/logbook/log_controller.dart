@@ -1,72 +1,84 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'models/log_model.dart';
+import '../../services/mongo_service.dart';
+import '../../helpers/log_helper.dart';
 
 class LogController {
   final ValueNotifier<List<LogModel>> logsNotifier = ValueNotifier([]);
 
-  LogController() {
-    loadFromStorage();
+  Future<void> loadFromDisk() async {
+    try {
+      final logs = await MongoService().getLogs();
+      logsNotifier.value = logs;
+      await LogHelper.writeLog(
+        "Data berhasil dimuat dari Cloud",
+        source: "log_controller.dart",
+        level: 2,
+      );
+    } catch (e) {
+      await LogHelper.writeLog(
+        "Gagal memuat data: $e",
+        source: "log_controller.dart",
+        level: 1,
+      );
+    }
   }
 
-  void addLog(String title, String desc, String category) {
+  Future<void> addLog(String title, String description, String category) async {
     final newLog = LogModel(
       title: title,
-      description: desc,
+      description: description,
       category: category,
       timestamp: DateTime.now(),
     );
-    logsNotifier.value = [...logsNotifier.value, newLog];
-    saveToStorage();
+
+    try {
+      await MongoService().insertLog(newLog);
+      await loadFromDisk();
+    } catch (e) {
+      await LogHelper.writeLog(
+        "Gagal menambah data: $e",
+        source: "log_controller.dart",
+        level: 1,
+      );
+    }
   }
 
-  void updateLog(int index, String title, String desc, String category) {
-    final currentLogs = List<LogModel>.from(logsNotifier.value);
-    final oldLog = currentLogs[index];
-
-    currentLogs[index] = LogModel(
+  Future<void> updateLog(int index, String title, String description, String category) async {
+    final currentLog = logsNotifier.value[index];
+    final updatedLog = LogModel(
+      id: currentLog.id,
       title: title,
-      description: desc,
+      description: description,
       category: category,
-      timestamp: oldLog.timestamp, // Waktu asli tetap dipertahankan
+      timestamp: currentLog.timestamp,
     );
-    logsNotifier.value = currentLogs;
-    saveToStorage();
+
+    try {
+      await MongoService().updateLog(updatedLog);
+      await loadFromDisk();
+    } catch (e) {
+      await LogHelper.writeLog(
+        "Gagal update data: $e",
+        source: "log_controller.dart",
+        level: 1,
+      );
+    }
   }
 
-  void deleteLog(int index) {
-    final currentLogs = List<LogModel>.from(logsNotifier.value);
-    currentLogs.removeAt(index);
-    logsNotifier.value = currentLogs;
-    saveToStorage();
-  }
-
-  // Fitur Undo
-  void undoDelete(int index, LogModel log) {
-    final currentLogs = List<LogModel>.from(logsNotifier.value);
-    currentLogs.insert(index, log);
-    logsNotifier.value = currentLogs;
-    saveToStorage();
-  }
-
-  Future<void> saveToStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final List<Map<String, dynamic>> mapList =
-        logsNotifier.value.map((log) => log.toMap()).toList();
-    final String jsonString = jsonEncode(mapList);
-    await prefs.setString('user_logs', jsonString);
-  }
-
-  Future<void> loadFromStorage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? jsonString = prefs.getString('user_logs');
-
-    if (jsonString != null) {
-      final List<dynamic> decodedList = jsonDecode(jsonString);
-      logsNotifier.value = decodedList
-          .map((item) => LogModel.fromMap(item))
-          .toList();
+  Future<void> removeLog(int index) async {
+    final logToDelete = logsNotifier.value[index];
+    if (logToDelete.id != null) {
+      try {
+        await MongoService().deleteLog(logToDelete.id!);
+        await loadFromDisk();
+      } catch (e) {
+        await LogHelper.writeLog(
+          "Gagal menghapus data: $e",
+          source: "log_controller.dart",
+          level: 1,
+        );
+      }
     }
   }
 }
