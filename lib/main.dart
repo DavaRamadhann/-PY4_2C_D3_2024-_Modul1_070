@@ -3,10 +3,18 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'features/onboarding/onboarding_view.dart';
 import 'features/auth/login_view.dart';
 import 'features/logbook/log_view.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'features/logbook/models/log_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
   await dotenv.load(fileName: ".env");
+
+  await Hive.initFlutter();
+  Hive.registerAdapter(LogModelAdapter());
+  await Hive.openBox<LogModel>('offline_logs');
+
   runApp(const MyApp());
 }
 
@@ -75,7 +83,6 @@ class MyApp extends StatelessWidget {
       home: const OnboardingView(),
       routes: {
         '/login': (context) => const LoginView(),
-        '/logbook': (context) => const LogView(),
       },
     );
   }

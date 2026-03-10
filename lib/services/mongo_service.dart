@@ -1,6 +1,5 @@
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-// Pastikan path import ini sesuai dengan lokasi file log_model.dart kamu
 import 'package:logbook_app_070/features/logbook/models/log_model.dart'; 
 import 'package:logbook_app_070/helpers/log_helper.dart';
 
@@ -60,17 +59,17 @@ class MongoService {
     }
   }
 
-  Future<List<LogModel>> getLogs() async {
+  Future<List<LogModel>> getLogs(String teamId) async {
     try {
       final collection = await _getSafeCollection();
 
       await LogHelper.writeLog(
-        "INFO: Fetching data from Cloud...",
+        "INFO: Fetching data from Cloud for Team: $teamId...",
         source: _source,
         level: 3,
       );
 
-      final List<Map<String, dynamic>> data = await collection.find().toList();
+      final List<Map<String, dynamic>> data = await collection.find(where.eq('teamId', teamId)).toList();
       return data.map((json) => LogModel.fromMap(json)).toList();
     } catch (e) {
       await LogHelper.writeLog(
@@ -78,7 +77,7 @@ class MongoService {
         source: _source,
         level: 1,
       );
-      return [];
+      rethrow;
     }
   }
 
@@ -107,7 +106,7 @@ class MongoService {
       final collection = await _getSafeCollection();
       if (log.id == null) throw Exception("ID Log tidak ditemukan untuk update");
 
-      await collection.replaceOne(where.id(log.id!), log.toMap());
+      await collection.replaceOne(where.id(ObjectId.fromHexString(log.id!)), log.toMap());
 
       await LogHelper.writeLog(
         "DATABASE: Update '${log.title}' Berhasil",

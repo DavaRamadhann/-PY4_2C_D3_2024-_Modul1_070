@@ -1,15 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../auth/login_view.dart';
 import 'models/log_model.dart';
 import 'log_controller.dart';
 import '../../services/mongo_service.dart';
 import '../../helpers/log_helper.dart';
+import '../../services/access_control_service.dart';
+import 'log_editor_page.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 
 class LogView extends StatefulWidget {
-  const LogView({super.key});
+  final dynamic currentUser;
+
+  const LogView({super.key, required this.currentUser});
 
   @override
   State<LogView> createState() => _LogViewState();
@@ -17,64 +22,78 @@ class LogView extends StatefulWidget {
 
 class _LogViewState extends State<LogView> {
   late final LogController _controller;
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
 
   String _searchQuery = "";
-  String _selectedCategory = "Pribadi";
-  final List<String> _categories = ["Pribadi", "Pekerjaan", "Urgent"];
   bool _isLoading = false;
+  bool _isOffline = false;
+  StreamSubscription<dynamic>? _connectivitySubscription;
 
   @override
   void initState() {
     super.initState();
     _controller = LogController();
     Future.microtask(() => _initDatabase());
+
+    // Listener Koneksi
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((dynamic result) {
+      bool isNowOffline = _checkIfOffline(result);
+      
+      // Jika dari offline menjadi online lagi
+      if (_isOffline && !isNowOffline) {
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text("Terhubung kembali! Mensinkronkan data..."), backgroundColor: Colors.green),
+           );
+         }
+         Future.microtask(() => _initDatabase());
+      }
+      
+      if (mounted) {
+        setState(() => _isOffline = isNowOffline);
+      }
+    });
+  }
+
+  bool _checkIfOffline(dynamic result) {
+    if (result is List) {
+      return result.contains(ConnectivityResult.none) || result.isEmpty;
+    } else {
+      return result == ConnectivityResult.none;
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Mechanical':
+        return Colors.greenAccent;
+      case 'Electronic':
+        return Colors.blueAccent;
+      case 'Software':
+        return Colors.deepPurpleAccent;
+      case 'Umum':
+      default:
+        return Colors.white70;
+    }
   }
 
   Future<void> _initDatabase() async {
     setState(() => _isLoading = true);
     try {
-      await LogHelper.writeLog(
-        "UI: Memulai inisialisasi database...",
-        source: "log_view.dart",
-      );
+      try {
+        await MongoService().connect().timeout(
+          const Duration(seconds: 5),
+          onTimeout: () => throw Exception(
+            "Koneksi Cloud Timeout. Mode Offline Diaktifkan.",
+          ),
+        );
+      } catch (e) {
+        // Abaikan pelemparan error koneksi UI di sini karena Banner Offline sudah mengurusnya.
+      }
 
-      await LogHelper.writeLog(
-        "UI: Menghubungi MongoService.connect()...",
-        source: "log_view.dart",
-      );
+      await _controller.loadLogs(widget.currentUser['teamId']);
 
-      await MongoService().connect().timeout(
-        const Duration(seconds: 15),
-        onTimeout: () => throw Exception(
-          "Koneksi Cloud Timeout. Periksa sinyal/IP Whitelist.",
-        ),
-      );
-
-      await LogHelper.writeLog(
-        "UI: Koneksi MongoService BERHASIL.",
-        source: "log_view.dart",
-      );
-
-      await LogHelper.writeLog(
-        "UI: Memanggil controller.loadFromDisk()...",
-        source: "log_view.dart",
-      );
-
-      await _controller.loadFromDisk();
-
-      await LogHelper.writeLog(
-        "UI: Data berhasil dimuat ke Notifier.",
-        source: "log_view.dart",
-      );
     } catch (e) {
-      await LogHelper.writeLog(
-        "UI: Error - $e",
-        source: "log_view.dart",
-        level: 1,
-      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Masalah: $e"), backgroundColor: Colors.red),
@@ -89,21 +108,9 @@ class _LogViewState extends State<LogView> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descController.dispose();
+    _connectivitySubscription?.cancel();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Color _getCategoryBadgeColor(String category) {
-    switch (category) {
-      case 'Urgent':
-        return Colors.redAccent.shade100;
-      case 'Pekerjaan':
-        return Colors.lightBlueAccent.shade100;
-      default:
-        return Colors.tealAccent.shade100;
-    }
   }
 
   void _showLogoutDialog() {
@@ -152,144 +159,17 @@ class _LogViewState extends State<LogView> {
     );
   }
 
-  void _showLogDialog({LogModel? existingLog, int? index}) {
-    _titleController.text = existingLog?.title ?? "";
-    _descController.text = existingLog?.description ?? "";
-    _selectedCategory = existingLog?.category ?? "Pribadi";
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: AlertDialog(
-                backgroundColor: const Color(0xFF0F2027).withOpacity(0.8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.white.withOpacity(0.2)),
-                ),
-                title: Text(
-                  existingLog == null ? "Halaman Baru" : "Edit Tulisan",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Serif',
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: _titleController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: "Judul",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.white.withOpacity(0.3),
-                          ),
-                        ),
-                        focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _descController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: "Isi Cerita",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        enabledBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.white.withOpacity(0.3),
-                          ),
-                        ),
-                        focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white),
-                        ),
-                      ),
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      dropdownColor: const Color(0xFF1E2A38),
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: "Kategori",
-                        labelStyle: const TextStyle(color: Colors.white70),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderSide: BorderSide(
-                            color: Colors.white.withOpacity(0.3),
-                          ),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      items: _categories.map((String category) {
-                        return DropdownMenuItem<String>(
-                          value: category,
-                          child: Text(category),
-                        );
-                      }).toList(),
-                      onChanged: (newValue) =>
-                          setState(() => _selectedCategory = newValue!),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      "Batal",
-                      style: TextStyle(color: Colors.white54),
-                    ),
-                  ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    onPressed: () {
-                      if (_titleController.text.isEmpty ||
-                          _descController.text.isEmpty)
-                        return;
-                      if (existingLog == null) {
-                        _controller.addLog(
-                          _titleController.text,
-                          _descController.text,
-                          _selectedCategory,
-                        );
-                      } else {
-                        _controller.updateLog(
-                          index!,
-                          _titleController.text,
-                          _descController.text,
-                          _selectedCategory,
-                        );
-                      }
-                      _titleController.clear();
-                      _descController.clear();
-                      Navigator.pop(context);
-                    },
-                    child: const Text("Simpan"),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+  void _goToEditor({LogModel? log, int? index}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LogEditorPage(
+          log: log,
+          index: index,
+          controller: _controller,
+          currentUser: widget.currentUser,
+        ),
+      ),
     );
   }
 
@@ -298,12 +178,13 @@ class _LogViewState extends State<LogView> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text(
-          "Journal Entries",
-          style: TextStyle(
+        title: Text(
+          "Logbook (${widget.currentUser['role']})",
+          style: const TextStyle(
             fontFamily: 'Serif',
             fontWeight: FontWeight.bold,
             letterSpacing: 1,
+            color: Colors.white,
           ),
         ),
         backgroundColor: Colors.transparent,
@@ -331,47 +212,21 @@ class _LogViewState extends State<LogView> {
               ),
             ),
           ),
-          Positioned(
-            top: 100,
-            right: -50,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.tealAccent.withOpacity(0.1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.tealAccent.withOpacity(0.2),
-                    blurRadius: 100,
-                    spreadRadius: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 50,
-            left: -30,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.blueAccent.withOpacity(0.1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blueAccent.withOpacity(0.15),
-                    blurRadius: 100,
-                    spreadRadius: 20,
-                  ),
-                ],
-              ),
-            ),
-          ),
           SafeArea(
             child: Column(
               children: [
+                if (_isOffline)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.redAccent,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: const Center(
+                      child: Text(
+                        "⚠ Anda sedang dalam Mode Offline",
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -420,7 +275,7 @@ class _LogViewState extends State<LogView> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                "Menghubungkan ke MongoDB Atlas...",
+                                "Membuka Catatan...",
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                 ),
@@ -430,13 +285,22 @@ class _LogViewState extends State<LogView> {
                         );
                       }
 
-                      final filteredLogs = logs
-                          .where(
-                            (log) => log.title.toLowerCase().contains(
-                              _searchQuery.toLowerCase(),
-                            ),
-                          )
-                          .toList();
+                      final filteredLogs = logs.where((log) {
+                        final bool matchesSearch = log.title
+                            .toLowerCase()
+                            .contains(_searchQuery.toLowerCase());
+                        
+                        final bool isOwner = log.authorId == widget.currentUser['uid'];
+                        // Gatekeeper Read Access check
+                        final bool canSee = AccessControlService.canPerform(
+                          widget.currentUser['role'], 
+                          AccessControlService.actionRead, 
+                          isOwner: isOwner, 
+                          isPublic: log.isPublic
+                        );
+
+                        return matchesSearch && canSee;
+                      }).toList();
 
                       if (filteredLogs.isEmpty) {
                         return Center(
@@ -450,14 +314,14 @@ class _LogViewState extends State<LogView> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                "Belum ada catatan di Cloud.",
+                                "Belum ada catatan di tim ini.",
                                 style: TextStyle(
                                   color: Colors.white.withOpacity(0.7),
                                 ),
                               ),
                               const SizedBox(height: 16),
                               ElevatedButton(
-                                onPressed: () => _showLogDialog(),
+                                onPressed: () => _goToEditor(),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white.withOpacity(
                                     0.2,
@@ -471,118 +335,70 @@ class _LogViewState extends State<LogView> {
                         );
                       }
 
+                      // Using ListView
                       return RefreshIndicator(
-                        onRefresh: () => _controller.loadFromDisk(), // Memanggil ulang data dari Cloud
+                        onRefresh: () => _controller.loadLogs(widget.currentUser['teamId']),
                         color: Colors.blueAccent,
                         child: ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
                           itemCount: filteredLogs.length,
                           itemBuilder: (context, index) {
-                          final log = filteredLogs[index];
-                          final originalIndex = logs.indexOf(log);
+                            final log = filteredLogs[index];
+                            final originalIndex = logs.indexOf(log);
 
-                          return Dismissible(
-                            key: Key(
-                              log.id?.toHexString() ?? log.timestamp.toString(),
-                            ),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              alignment: Alignment.centerRight,
-                              margin: const EdgeInsets.only(bottom: 15),
-                              padding: const EdgeInsets.only(right: 20),
-                              decoration: BoxDecoration(
-                                color: Colors.redAccent.withOpacity(0.8),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.white,
-                                size: 30,
-                              ),
-                            ),
-                            confirmDismiss: (direction) async {
-                              return await showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  backgroundColor: const Color(0xFF1E2A38),
-                                  title: const Text(
-                                    "Hapus?",
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                  content: const Text(
-                                    "Kenangan ini akan dihapus selamanya dari Cloud.",
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, false),
-                                      child: const Text(
-                                        "Batal",
-                                        style: TextStyle(color: Colors.white54),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(context, true),
-                                      child: const Text(
-                                        "Hapus",
-                                        style: TextStyle(
-                                          color: Colors.redAccent,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                            onDismissed: (direction) {
-                              _controller.removeLog(originalIndex);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text("Catatan dihapus dari Cloud"),
-                                  backgroundColor: Color(0xFF203A43),
-                                ),
-                              );
-                            },
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 15),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.1),
-                                ),
-                              ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.all(16),
+                            final bool isOwner = log.authorId == widget.currentUser['uid'];
+                            final bool canDelete = AccessControlService.canPerform(widget.currentUser['role'], AccessControlService.actionDelete, isOwner: isOwner);
+                            final bool canEdit = AccessControlService.canPerform(widget.currentUser['role'], AccessControlService.actionUpdate, isOwner: isOwner);
+
+                            Widget listTile = ListTile(
+                              contentPadding: const EdgeInsets.all(16),
                                 leading: Container(
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.1),
+                                    color: _getCategoryColor(log.category).withOpacity(0.2),
                                     shape: BoxShape.circle,
+                                    border: Border.all(color: _getCategoryColor(log.category)),
                                   ),
                                   child: Icon(
-                                    Icons.cloud_done,
-                                    color: _getCategoryBadgeColor(log.category),
+                                    log.id != null ? Icons.cloud_done : Icons.cloud_upload_outlined,
+                                    color: _getCategoryColor(log.category),
                                   ),
                                 ),
-                                title: Text(
-                                  log.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
+                                title: Wrap(
+                                  spacing: 8,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                     Text(
+                                       log.title,
+                                       style: const TextStyle(
+                                         fontWeight: FontWeight.bold,
+                                         color: Colors.white,
+                                         fontSize: 16,
+                                       ),
+                                     ),
+                                     Container(
+                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                       decoration: BoxDecoration(
+                                         color: _getCategoryColor(log.category).withOpacity(0.15),
+                                         borderRadius: BorderRadius.circular(8),
+                                       ),
+                                       child: Text(
+                                         log.category,
+                                         style: TextStyle(
+                                           color: _getCategoryColor(log.category),
+                                           fontSize: 10,
+                                           fontWeight: FontWeight.bold,
+                                         ),
+                                       ),
+                                     ),
+                                  ]
                                 ),
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      DateFormat(
-                                        'dd MMM yyyy • HH:mm',
-                                      ).format(log.timestamp),
+                                      log.date,
                                       style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 12,
@@ -601,76 +417,89 @@ class _LogViewState extends State<LogView> {
                                     Row(
                                       children: [
                                         Icon(
-                                          Icons.access_time_rounded,
-                                          size: 12,
-                                          color: Colors.white.withOpacity(0.4),
+                                          log.isPublic ? Icons.public : Icons.lock,
+                                          size: 14,
+                                          color: Colors.white.withOpacity(0.5),
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          DateFormat(
-                                            'dd MMM, HH:mm',
-                                          ).format(log.timestamp),
+                                          log.isPublic ? "Public" : "Private",
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: Colors.white.withOpacity(
-                                              0.4,
-                                            ),
+                                            color: Colors.white.withOpacity(0.5),
                                           ),
                                         ),
                                         const Spacer(),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 3,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: _getCategoryBadgeColor(
-                                              log.category,
-                                            ).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            border: Border.all(
-                                              color: _getCategoryBadgeColor(
-                                                log.category,
-                                              ).withOpacity(0.3),
-                                            ),
-                                          ),
-                                          child: Text(
-                                            log.category.toUpperCase(),
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: _getCategoryBadgeColor(
-                                                log.category,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
                                       ],
                                     ),
                                   ],
                                 ),
-                                onTap: () => _showLogDialog(
-                                  existingLog: log,
-                                  index: originalIndex,
+                                onTap: canEdit ? () => _goToEditor(log: log, index: originalIndex) : null,
+                            );
+
+                            Widget container = Container(
+                              margin: const EdgeInsets.only(bottom: 15),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: _getCategoryColor(log.category).withOpacity(0.3),
+                                  width: 1.5,
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
+                              child: listTile,
+                            );
+
+                            if (canDelete) {
+                              return Dismissible(
+                                key: Key(log.id?.toString() ?? log.hashCode.toString()),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  margin: const EdgeInsets.only(bottom: 15),
+                                  padding: const EdgeInsets.only(right: 20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.redAccent.withOpacity(0.8),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Icon(Icons.delete_outline, color: Colors.white, size: 30),
+                                ),
+                                confirmDismiss: (direction) async {
+                                  return await showDialog(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      backgroundColor: const Color(0xFF1E2A38),
+                                      title: const Text("Hapus?", style: TextStyle(color: Colors.white)),
+                                      content: const Text("Catatan ini akan dihapus selamanya.", style: TextStyle(color: Colors.white70)),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal", style: TextStyle(color: Colors.white54))),
+                                        TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Hapus", style: TextStyle(color: Colors.redAccent))),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                onDismissed: (direction) {
+                                  _controller.removeLog(originalIndex);
+                                },
+                                child: container,
+                              );
+                            }
+
+                            return container;
+
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showLogDialog(),
+        onPressed: () => _goToEditor(),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF0F2027),
         elevation: 10,

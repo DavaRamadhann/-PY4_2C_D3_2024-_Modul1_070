@@ -1,6 +1,7 @@
-import 'dart:ui'; // Diperlukan untuk ImageFilter (Blur effect)
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'login_controller.dart';
 import '../logbook/log_view.dart';
 
 class LoginView extends StatefulWidget {
@@ -18,17 +19,26 @@ class _LoginViewState extends State<LoginView> {
   Future<void> _handleLogin() async {
     setState(() => _isLoading = true);
     
-    // Simulasi delay agar terasa seperti loading asli
     await Future.delayed(const Duration(seconds: 1));
 
-    if (_usernameController.text == "admin" && _passwordController.text == "123") {
+    final authController = LoginController();
+    final userMap = authController.login(_usernameController.text, _passwordController.text);
+
+    if (userMap != null) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('username', _usernameController.text);
+
+      final currentUser = {
+        'username': _usernameController.text,
+        'role': userMap['role'],
+        'uid': userMap['uid'],
+        'teamId': userMap['teamId'],
+      };
 
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const LogView()),
+        MaterialPageRoute(builder: (_) => LogView(currentUser: currentUser)),
       );
     } else {
       setState(() => _isLoading = false);
