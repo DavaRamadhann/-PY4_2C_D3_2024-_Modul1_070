@@ -64,7 +64,7 @@ class LogController {
       category: category,
     );
 
-    // ACTION 1: Simpan ke Hive (Instan)
+    // ACTION 1: Simpan ke Hive (Instan Lokal/Disk)
     await _myBox.add(newLog);
     logsNotifier.value = [...logsNotifier.value, newLog];
 

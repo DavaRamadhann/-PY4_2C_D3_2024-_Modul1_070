@@ -28,10 +28,16 @@ class CounterController {
   }
 
   void decrement(String username) {
-    _counter -= _step;
+    if (_counter - _step >= 0) {
+      _counter -= _step;
+    } else {
+      _counter = 0;
+    }
+    
     _addHistory(username, "-$_step");
     _saveAll(username);
   }
+
 
   void reset(String username) {
     _counter = 0;

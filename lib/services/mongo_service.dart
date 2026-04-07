@@ -82,6 +82,9 @@ class MongoService {
   }
 
   Future<void> insertLog(LogModel log) async {
+    if (log.title.isEmpty) throw Exception("Title Kosong: Ditolak Cloud");
+    if (log.teamId.isEmpty) throw Exception("Team Kosong: Ditolak Cloud");
+    
     try {
       final collection = await _getSafeCollection();
       await collection.insertOne(log.toMap());

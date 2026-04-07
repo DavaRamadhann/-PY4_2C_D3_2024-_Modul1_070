@@ -9,8 +9,15 @@ class LogHelper {
     String source = "Unknown",
     int level = 2,
   }) async {
-    final int configLevel = int.tryParse(dotenv.env['LOG_LEVEL'] ?? '2') ?? 2;
-    final String muteList = dotenv.env['LOG_MUTE'] ?? '';
+    int configLevel = 2;
+    String muteList = '';
+
+    try {
+      configLevel = int.tryParse(dotenv.env['LOG_LEVEL'] ?? '2') ?? 2;
+      muteList = dotenv.env['LOG_MUTE'] ?? '';
+    } catch (_) {
+      // Bypass fallback jika dotenv belum di-load
+    }
 
     if (level > configLevel) return;
     if (muteList.split(',').contains(source)) return;

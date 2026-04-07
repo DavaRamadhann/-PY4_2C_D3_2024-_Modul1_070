@@ -20,11 +20,13 @@ class LoginController {
     },
   };
 
-  Map<String, dynamic>? login(String username, String password) {
+    Map<String, dynamic>? login(String username, String password) {
     if (!_users.containsKey(username)) return null;
+    
     if (_users[username]!['password'] == password) {
       return _users[username];
     }
+    
     return null;
   }
 }
