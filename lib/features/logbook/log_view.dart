@@ -8,6 +8,7 @@ import '../../services/mongo_service.dart';
 import '../../helpers/log_helper.dart';
 import '../../services/access_control_service.dart';
 import 'log_editor_page.dart';
+import '../vision/vision_view.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 
@@ -498,13 +499,30 @@ class _LogViewState extends State<LogView> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _goToEditor(),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F2027),
-        elevation: 10,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        child: const Icon(Icons.create_rounded),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "vision_fab",
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VisionView())),
+            backgroundColor: const Color(0xFF26A69A),
+            foregroundColor: Colors.white,
+            elevation: 10,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            child: const Icon(Icons.camera_alt_outlined),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: "create_fab",
+            onPressed: () => _goToEditor(),
+            backgroundColor: Colors.white,
+            foregroundColor: const Color(0xFF0F2027),
+            elevation: 10,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            child: const Icon(Icons.create_rounded),
+          ),
+        ],
       ),
     );
   }

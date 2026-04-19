@@ -6,8 +6,19 @@ import 'features/logbook/log_view.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'features/logbook/models/log_model.dart';
 
+import 'package:camera/camera.dart';
+
+List<CameraDescription> cameras = [];
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  try {
+    cameras = await availableCameras();
+  } on CameraException catch (e) {
+    print('Error: ${e.code}\nError Message: ${e.description}');
+  }
+
   
   await dotenv.load(fileName: ".env");
 
